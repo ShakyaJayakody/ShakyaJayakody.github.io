@@ -149,6 +149,12 @@ a:hover {
     padding: 0 24px 80px 24px;
 }
 
+@media (max-width: 576px) {
+    .container {
+        padding: 0 16px 60px 16px;
+    }
+}
+
 .layout-grid {
     display: grid;
     grid-template-columns: 320px 1fr;
@@ -263,7 +269,6 @@ a:hover {
 
 @media (max-width: 768px) {
     .nav-menu {
-        display: none;
         position: absolute;
         top: 70px;
         left: 0;
@@ -275,10 +280,18 @@ a:hover {
         gap: 1.5rem;
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
+        
+        /* Smooth Mobile Menu Animation */
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s;
     }
     
     .nav-menu.open {
-        display: flex;
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
     }
     
     .menu-toggle {
@@ -485,7 +498,7 @@ a:hover {
 /* Metric / Quick Stats Widgets */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 1rem;
     margin-top: 1.5rem;
 }

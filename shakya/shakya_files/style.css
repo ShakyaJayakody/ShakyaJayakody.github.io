@@ -69,6 +69,8 @@ body.dark-theme {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 html {
@@ -918,12 +920,16 @@ body.dark-theme .badge-generic {
 .pub-meta {
     font-size: 0.85rem;
     color: var(--text-muted);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .pub-doi {
     color: var(--primary-color);
     font-weight: 600;
     margin-left: 0.5rem;
+    word-break: break-all;
+    overflow-wrap: break-word;
 }
 
 /* Beautiful Timeline news section (Replaces the nested scroll table) */

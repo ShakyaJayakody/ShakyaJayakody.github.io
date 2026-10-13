@@ -426,42 +426,6 @@ a:hover {
     margin-bottom: 1.25rem;
 }
 
-/* Metric / Quick Stats Widgets */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 1rem;
-    margin-top: 1.5rem;
-}
-
-.stat-card {
-    background: var(--surface-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 1rem;
-    text-align: center;
-    transition: border-color 0.2s ease;
-}
-
-.stat-card:hover {
-    border-color: var(--border-hover);
-}
-
-.stat-value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--primary-color);
-    margin-bottom: 0.15rem;
-}
-
-.stat-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
 /* Research Interests Icon Grid */
 .interests-grid {
     display: grid;
@@ -512,12 +476,13 @@ a:hover {
 .education-timeline {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.25rem;
 }
 
 .education-item {
     display: flex;
-    gap: 1.5rem;
+    gap: 1.25rem;
+    align-items: center;
 }
 
 @media (max-width: 576px) {
@@ -545,13 +510,27 @@ a:hover {
     flex-grow: 1;
 }
 
-.edu-school {
-    font-size: 1.15rem;
+.edu-degree {
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--text-main);
+    line-height: 1.4;
+}
+
+.edu-minor {
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.edu-school {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-muted);
     display: flex;
     justify-content: space-between;
     align-items: baseline;
+    gap: 1rem;
+    margin-top: 0.15rem;
 }
 
 @media (max-width: 576px) {
@@ -565,29 +544,10 @@ a:hover {
     font-size: 0.85rem;
     color: var(--text-muted);
     font-weight: 500;
+    white-space: nowrap;
 }
 
-.edu-degrees {
-    font-size: 0.95rem;
-    color: var(--text-muted);
-    margin-top: 0.25rem;
-}
-
-.edu-degree-item {
-    margin-top: 0.35rem;
-    position: relative;
-    padding-left: 1rem;
-}
-
-.edu-degree-item::before {
-    content: '▪';
-    position: absolute;
-    left: 0;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-}
-
-/* Interactive Tabs for Teaching section */
+/* Tabs for Teaching section */
 .tabs-container {
     margin-top: 1rem;
 }
@@ -604,11 +564,12 @@ a:hover {
     border: none;
     color: var(--text-muted);
     padding: 0.75rem 1.25rem;
+    font-family: var(--font-body);
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     position: relative;
-    transition: all 0.3s ease;
+    transition: color 0.3s ease;
     outline: none;
 }
 
@@ -620,7 +581,7 @@ a:hover {
     color: var(--primary-color);
 }
 
-.tab-btn.active::after {
+.tab-btn::after {
     content: '';
     position: absolute;
     bottom: -2px;
@@ -628,6 +589,23 @@ a:hover {
     right: 0;
     height: 2px;
     background: var(--primary-color);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.35s ease;
+}
+
+.tab-btn.active::after {
+    transform: scaleX(1);
+}
+
+/* Brief cue on the tab that is about to open automatically */
+.tab-btn.attention {
+    animation: tabAttention 0.35s ease;
+}
+
+@keyframes tabAttention {
+    0% { color: var(--text-muted); }
+    100% { color: var(--primary-color); }
 }
 
 .tab-panel {
@@ -636,6 +614,31 @@ a:hover {
 
 .tab-panel.active {
     display: block;
+    animation: tabSlideIn 0.45s ease;
+}
+
+@keyframes tabSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tab-scroll-sentinel {
+    height: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tab-btn::after,
+    .tab-btn.attention,
+    .tab-panel.active {
+        transition: none;
+        animation: none;
+    }
 }
 
 .teaching-list {

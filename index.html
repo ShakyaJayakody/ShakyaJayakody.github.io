@@ -76,8 +76,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Arvo:wght@400;700&family=Inter:wght@400;500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="preload" href="shakya/shakya_files/style.css?v=2.0" as="style">
-    <link rel="StyleSheet" href="shakya/shakya_files/style.css?v=2.0" type="text/css">
+    <link rel="preload" href="shakya/shakya_files/style.css?v=2.4" as="style">
+    <link rel="StyleSheet" href="shakya/shakya_files/style.css?v=2.4" type="text/css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/png" sizes="48x48" href="shakya/shakya_files/favicon-48x48.png">
@@ -181,26 +181,6 @@
                             Tech University</a>. I earned my bachelor's degree in Electrical
                         Engineering with a minor in mathematics from Louisiana Tech University.
                     </p>
-
-                    <!-- Metric Highlights Grid -->
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-value">Ph.D.</div>
-                            <div class="stat-label">EE - UCF 2025</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">ML & Sys</div>
-                            <div class="stat-label">LLMs & GCNs</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">5+</div>
-                            <div class="stat-label">Publications</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">13+</div>
-                            <div class="stat-label">Courses Taught</div>
-                        </div>
-                    </div>
                 </section>
 
                 <!-- Education section -->
@@ -212,30 +192,49 @@
                                 <i class="fa fa-graduation-cap"></i>
                             </div>
                             <div class="education-details">
+                                <div class="edu-degree">Ph.D. in Electrical Engineering</div>
                                 <div class="edu-school">
                                     <span>University of Central Florida</span>
                                     <span class="edu-location">Orlando, FL</span>
-                                </div>
-                                <div class="edu-degrees">
-                                    <div class="edu-degree-item">Ph.D. in Electrical Engineering</div>
-                                    <div class="edu-degree-item">M.S. in Computer Engineering</div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="education-item">
                             <div class="education-logo-box">
-                                <i class="fa fa-university"></i>
+                                <i class="fa fa-graduation-cap"></i>
                             </div>
                             <div class="education-details">
+                                <div class="edu-degree">M.S. in Computer Engineering</div>
+                                <div class="edu-school">
+                                    <span>University of Central Florida</span>
+                                    <span class="edu-location">Orlando, FL</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="education-item">
+                            <div class="education-logo-box">
+                                <i class="fa fa-graduation-cap"></i>
+                            </div>
+                            <div class="education-details">
+                                <div class="edu-degree">M.S. in Electrical Engineering</div>
                                 <div class="edu-school">
                                     <span>Louisiana Tech University</span>
                                     <span class="edu-location">Ruston, LA</span>
                                 </div>
-                                <div class="edu-degrees">
-                                    <div class="edu-degree-item">M.S. in Electrical Engineering</div>
-                                    <div class="edu-degree-item">B.S. in Electrical Engineering (Minor in Mathematics)
-                                    </div>
+                            </div>
+                        </div>
+
+                        <div class="education-item">
+                            <div class="education-logo-box">
+                                <i class="fa fa-graduation-cap"></i>
+                            </div>
+                            <div class="education-details">
+                                <div class="edu-degree">B.S. in Electrical Engineering <span class="edu-minor">(Minor in Mathematics)</span></div>
+                                <div class="edu-school">
+                                    <span>Louisiana Tech University</span>
+                                    <span class="edu-location">Ruston, LA</span>
                                 </div>
                             </div>
                         </div>
@@ -429,11 +428,11 @@
                         of Central Florida
                     </p>
 
-                    <div class="tabs-container">
+                    <div class="tabs-container" id="teaching-tabs">
                         <div class="tab-buttons">
-                            <button class="tab-btn active" onclick="switchTab(event, 'instructor-tab')">As
+                            <button class="tab-btn active" data-tab="instructor-tab" onclick="switchTab(event, 'instructor-tab')">As
                                 Instructor</button>
-                            <button class="tab-btn" onclick="switchTab(event, 'ta-tab')">As Teaching Assistant</button>
+                            <button class="tab-btn" data-tab="ta-tab" onclick="switchTab(event, 'ta-tab')">As Teaching Assistant</button>
                         </div>
 
                         <!-- Instructor tab content -->
@@ -500,6 +499,7 @@
                                 </li>
                             </ul>
                         </div>
+                        <div class="tab-scroll-sentinel" id="tab-scroll-sentinel" aria-hidden="true"></div>
                     </div>
                 </section>
 
@@ -627,23 +627,82 @@
     <!-- Page Script Logic -->
     <script>
         // Tab switching logic for Teaching and Instruction
-        function switchTab(evt, tabId) {
-            // Hide all tab panels
+        let tabChosenManually = false;
+
+        function showTab(tabId) {
             const panels = document.getElementsByClassName("tab-panel");
             for (let panel of panels) {
                 panel.classList.remove("active");
             }
-
-            // Remove active status from all buttons
             const buttons = document.getElementsByClassName("tab-btn");
             for (let btn of buttons) {
-                btn.classList.remove("active");
+                btn.classList.toggle("active", btn.dataset.tab === tabId);
+            }
+            const panel = document.getElementById(tabId);
+            // Restart the entrance animation
+            panel.classList.remove("active");
+            void panel.offsetWidth;
+            panel.classList.add("active");
+        }
+
+        function switchTab(evt, tabId) {
+            tabChosenManually = true;
+            showTab(tabId);
+        }
+
+        // Auto-switch the Teaching tabs with scroll direction:
+        // scrolling down past the Instructor list opens the Teaching Assistant tab,
+        // scrolling back up through the section returns to the Instructor tab.
+        // Stops entirely once the reader clicks a tab themselves.
+        (function () {
+            const sentinel = document.getElementById("tab-scroll-sentinel");
+            const tabBar = document.querySelector("#teaching-tabs .tab-buttons");
+            const instructorPanel = document.getElementById("instructor-tab");
+            const buttons = {
+                "instructor-tab": document.querySelector('.tab-btn[data-tab="instructor-tab"]'),
+                "ta-tab": document.querySelector('.tab-btn[data-tab="ta-tab"]')
+            };
+            if (!sentinel || !tabBar || !instructorPanel) return;
+
+            let lastY = window.scrollY;
+            let busy = false;
+
+            function animateTo(tabId) {
+                busy = true;
+                buttons[tabId].classList.add("attention");
+                setTimeout(() => {
+                    showTab(tabId);
+                    buttons[tabId].classList.remove("attention");
+                    busy = false;
+                }, 350);
             }
 
-            // Show active panel and highlight button
-            document.getElementById(tabId).classList.add("active");
-            evt.currentTarget.classList.add("active");
-        }
+            function onScroll() {
+                if (tabChosenManually) {
+                    window.removeEventListener("scroll", onScroll);
+                    return;
+                }
+                const y = window.scrollY;
+                const goingDown = y > lastY;
+                lastY = y;
+                if (busy) return;
+
+                const vh = window.innerHeight;
+                const instructorActive = instructorPanel.classList.contains("active");
+
+                if (goingDown && instructorActive) {
+                    // End of the Instructor list has risen into the lower part of the viewport
+                    const r = sentinel.getBoundingClientRect();
+                    if (r.top <= vh * 0.8 && r.bottom >= 0) animateTo("ta-tab");
+                } else if (!goingDown && !instructorActive) {
+                    // Tab bar has come back down into the upper part of the viewport
+                    const r = tabBar.getBoundingClientRect();
+                    if (r.top >= vh * 0.25 && r.top <= vh) animateTo("instructor-tab");
+                }
+            }
+
+            window.addEventListener("scroll", onScroll, { passive: true });
+        })();
 
         // Mobile responsive menu toggle
         const menuBtn = document.getElementById("mobile-menu-btn");

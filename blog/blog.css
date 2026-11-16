@@ -1,0 +1,415 @@
+/* Shakya Jayakody - Blog stylesheet
+ *
+ * Shared by the blog index (blog/index.html) and every post.
+ * It carries three things:
+ *   1. The site colour tokens, light and dark, matching shakya/shakya_files/style.css.
+ *   2. The site header and a small footer, so blog pages look like the rest of the site.
+ *   3. A mapping from the site palette onto the variables posts define for themselves
+ *      (--bg, --fg, --accent, ...), so a self-contained post picks up the site theme.
+ *
+ * Nothing here styles bare elements (no reset, no bare h2 or a rules), so it is safe
+ * to load on a post that brings its own article CSS. Link it AFTER the post's <style>.
+ */
+
+/* ---------- 1. Tokens ---------- */
+html:root {
+    color-scheme: light;
+
+    --site-bg: #f5f6f8;
+    --site-card: #ffffff;
+    --site-surface: #f8f9fb;
+    --site-text: #1f2933;
+    --site-muted: #5f6b7a;
+    --site-primary: #1f3a5f;
+    --site-primary-hover: #162c49;
+    --site-border: #e1e5eb;
+    --site-border-hover: #c5ccd6;
+    --site-header-bg: #ffffff;
+    --site-badge-bg: #eef2f7;
+    --site-badge-text: #1f3a5f;
+    --site-font-heading: 'Arvo', serif;
+    --site-font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    /* 3. Post variables, light */
+    --bg: var(--site-bg);
+    --surface: var(--site-card);
+    --fg: var(--site-text);
+    --muted: var(--site-muted);
+    --line: var(--site-border);
+    --accent: var(--site-primary);
+    --accent-soft: var(--site-badge-bg);
+    --code-bg: #ebeef3;
+    --code-fg: #1f2933;
+    --tok-com: #6b7280;
+    --tok-kw: #1f4e9c;
+    --tok-bi: #0f6f68;
+    --tok-str: #3b7426;
+    --tok-num: #a0530c;
+    --sans: var(--site-font-body);
+    --serif: var(--site-font-heading);
+}
+
+html.dark-theme {
+    color-scheme: dark;
+
+    --site-bg: #111418;
+    --site-card: #191d23;
+    --site-surface: #14181d;
+    --site-text: #e6e9ee;
+    --site-muted: #9aa4b2;
+    --site-primary: #8fb3dc;
+    --site-primary-hover: #a9c6e8;
+    --site-border: #2a3038;
+    --site-border-hover: #3a424c;
+    --site-header-bg: #14181d;
+    --site-badge-bg: #222a34;
+    --site-badge-text: #b9d0ea;
+
+    /* 3. Post variables, dark */
+    --code-bg: #191d23;
+    --code-fg: #e6e9ee;
+    --tok-com: #8b94a1;
+    --tok-kw: #8ab4f8;
+    --tok-bi: #5fd4c8;
+    --tok-str: #a8d695;
+    --tok-num: #f0b072;
+}
+
+html {
+    scroll-padding-top: 90px; /* keep anchored headings clear of the fixed header */
+}
+
+body.blog-page {
+    padding-top: 70px; /* offset for the fixed header */
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* ---------- 2. Site header ---------- */
+.site-header,
+.site-header * {
+    box-sizing: border-box;
+}
+
+.site-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 70px;
+    background-color: var(--site-header-bg);
+    border-bottom: 1px solid var(--site-border);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    font-family: var(--site-font-body);
+    font-size: 16px;
+    line-height: 1.7;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+
+.site-header .header-container {
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.site-header .header-logo {
+    font-family: var(--site-font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--site-text);
+}
+
+.site-header .header-logo a {
+    color: inherit;
+    font-weight: 400; /* matches the home page logo */
+    text-decoration: none;
+}
+
+.site-header .header-logo span {
+    color: var(--site-primary);
+}
+
+.site-header .nav-menu {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.site-header .nav-link {
+    color: var(--site-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.site-header .nav-link:hover,
+.site-header .nav-link.active {
+    color: var(--site-primary);
+}
+
+.site-header .theme-toggle-btn {
+    background: var(--site-card);
+    border: 1px solid var(--site-border);
+    color: var(--site-text);
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.site-header .theme-toggle-btn:hover {
+    border-color: var(--site-border-hover);
+    background: var(--site-surface);
+}
+
+.site-header .menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    margin: 0;
+    padding: 0;
+    color: var(--site-text);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+@media (max-width: 960px) {
+    .site-header .nav-menu {
+        display: none;
+        position: absolute;
+        top: 70px;
+        left: 0;
+        width: 100%;
+        background-color: var(--site-header-bg);
+        border-bottom: 1px solid var(--site-border);
+        flex-direction: column;
+        padding: 1.5rem;
+        gap: 1.5rem;
+    }
+
+    .site-header .nav-menu.open {
+        display: flex;
+    }
+
+    .site-header .menu-toggle {
+        display: block;
+    }
+}
+
+/* ---------- Post page additions ---------- */
+.blog-breadcrumb {
+    font-family: var(--site-font-body);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--site-muted);
+}
+
+.blog-breadcrumb a,
+.ks-post .blog-breadcrumb a {
+    color: var(--site-muted);
+    text-decoration: none;
+}
+
+.blog-breadcrumb a:hover,
+.ks-post .blog-breadcrumb a:hover {
+    color: var(--site-primary);
+    text-decoration: underline;
+}
+
+.blog-footer {
+    box-sizing: border-box;
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+    border-top: 1px solid var(--site-border);
+    font-family: var(--site-font-body);
+    font-size: 0.9rem;
+    color: var(--site-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    justify-content: space-between;
+}
+
+.blog-footer a {
+    color: var(--site-primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.blog-footer a:hover {
+    color: var(--site-primary-hover);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* ---------- Blog index page ---------- */
+body.blog-index {
+    margin: 0;
+    background: var(--site-bg);
+    color: var(--site-text);
+    font-family: var(--site-font-body);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+}
+
+.blog-index *,
+.blog-index *::before,
+.blog-index *::after {
+    box-sizing: border-box;
+}
+
+.blog-main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2.5rem 24px 3rem;
+}
+
+.blog-intro {
+    margin-bottom: 2rem;
+}
+
+.blog-intro h1 {
+    margin: 0;
+    font-family: var(--site-font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--site-text);
+}
+
+.blog-intro p {
+    margin: 0.5rem 0 0;
+    color: var(--site-muted);
+    font-size: 1.05rem;
+}
+
+.post-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.post-card {
+    background: var(--site-card);
+    border: 1px solid var(--site-border);
+    border-left: 3px solid var(--site-primary);
+    border-radius: 8px;
+    padding: 1.75rem 2rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: border-color 0.2s ease;
+}
+
+.post-card:hover {
+    border-color: var(--site-border-hover);
+    border-left-color: var(--site-primary);
+}
+
+.post-meta {
+    margin: 0 0 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--site-muted);
+}
+
+.post-title {
+    margin: 0;
+    font-family: var(--site-font-heading);
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.post-title a {
+    color: var(--site-text);
+    text-decoration: none;
+}
+
+.post-title a:hover {
+    color: var(--site-primary);
+}
+
+.post-summary {
+    margin: 0.6rem 0 0;
+    color: var(--site-muted);
+    font-size: 0.98rem;
+}
+
+.post-tags {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.post-tags li {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    border: 1px solid var(--site-border);
+    background: var(--site-badge-bg);
+    color: var(--site-badge-text);
+}
+
+.post-read {
+    display: inline-block;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--site-primary);
+    text-decoration: none;
+}
+
+.post-read:hover {
+    color: var(--site-primary-hover);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.blog-index .blog-footer {
+    max-width: 860px;
+    padding-left: 24px;
+    padding-right: 24px;
+}
+
+@media (max-width: 576px) {
+    .post-card {
+        padding: 1.25rem 1.25rem;
+    }
+}
+
+@media print {
+    .site-header,
+    .blog-footer,
+    .blog-breadcrumb {
+        display: none;
+    }
+
+    body.blog-page {
+        padding-top: 0;
+    }
+}

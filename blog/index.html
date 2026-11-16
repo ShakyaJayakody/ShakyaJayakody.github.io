@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog - Shakya Jayakody</title>
+    <link rel="canonical" href="https://shakyajayakody.github.io/blog/">
+
+    <meta name="description"
+        content="Blog of Shakya Jayakody: writing on machine learning systems, GPU computing, and hardware-software co-design.">
+    <meta name="author" content="Shakya Jayakody">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://shakyajayakody.github.io/blog/">
+    <meta property="og:title" content="Blog - Shakya Jayakody">
+    <meta property="og:description"
+        content="Writing on machine learning systems, GPU computing, and hardware-software co-design.">
+    <meta property="og:site_name" content="Dr. Shakya Jayakody">
+
+    <!-- Apply the saved theme before first paint (same key as the home page) -->
+    <script>
+        try {
+            if ((localStorage.getItem("theme") || "light") === "dark") {
+                document.documentElement.classList.add("dark-theme");
+            }
+        } catch (e) { }
+    </script>
+
+    <!-- Fonts & Styles -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Arvo:wght@400;700&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="blog.css?v=1.0">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="icon" type="image/png" sizes="48x48" href="../shakya/shakya_files/favicon-48x48.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="../shakya/shakya_files/favicon-96x96.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../shakya/shakya_files/favicon-180x180.png">
+</head>
+
+<body class="blog-page blog-index">
+    <header class="site-header">
+        <div class="header-container">
+            <div class="header-logo">
+                <a href="../">Shakya <span>Jayakody</span></a>
+            </div>
+
+            <button class="menu-toggle" aria-label="Toggle Navigation Menu" id="mobile-menu-btn">
+                <i class="fa fa-bars"></i>
+            </button>
+
+            <nav class="nav-menu" id="nav-menu">
+                <a href="../#about" class="nav-link">About</a>
+                <a href="../#education" class="nav-link">Education</a>
+                <a href="../#research" class="nav-link">Research</a>
+                <a href="../#publications" class="nav-link">Publications</a>
+                <a href="../#teaching" class="nav-link">Teaching</a>
+                <a href="./" class="nav-link active" aria-current="page">Blog</a>
+                <a href="../#news" class="nav-link">News</a>
+                <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Theme">
+                    <i class="fa fa-moon-o" id="theme-icon"></i>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="blog-main">
+        <div class="blog-intro">
+            <h1>Blog</h1>
+            <p>Writing on machine learning systems, GPU computing, and hardware-software co-design.</p>
+        </div>
+
+        <!-- To add a post: copy one <li class="post-card"> block, newest first -->
+        <ul class="post-list">
+            <li class="post-card">
+                <p class="post-meta"><time datetime="2026-11">November 2026</time> · 19 min read</p>
+                <h2 class="post-title">
+                    <a href="KineticSim/">KineticSim: Simulating 54 Billion Market Events per Second on One GPU</a>
+                </h2>
+                <p class="post-summary">KineticSim keeps limit-order books in GPU shared memory inside one
+                    persistent CUDA kernel, reaching 54.7 billion agent-events per second on one RTX 5090.</p>
+                <ul class="post-tags">
+                    <li>GPU</li>
+                    <li>CUDA</li>
+                    <li>Agent-based modeling</li>
+                    <li>Market simulation</li>
+                </ul>
+                <a class="post-read" href="KineticSim/" aria-label="Read the KineticSim post">Read post</a>
+            </li>
+        </ul>
+    </main>
+
+    <footer class="blog-footer">
+        <a href="../">Back to home</a>
+        <span>Shakya Jayakody</span>
+    </footer>
+
+    <script src="blog.js?v=1.0"></script>
+</body>
+
+</html>

@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>KineticSim: Simulating 54 Billion Market Events per Second on One GPU</title>
+<meta name="description" content="KineticSim keeps limit-order books in GPU shared memory inside one persistent CUDA kernel, reaching 54.7 billion agent-events per second on one RTX 5090.">
+<meta name="author" content="Shakya Jayakody">
+<meta name="keywords" content="GPU, CUDA, agent-based modeling, market simulation, high-performance computing, call auctions">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KineticSim: Simulating 54 Billion Market Events per Second on One GPU">
+<meta property="og:description" content="KineticSim keeps limit-order books in GPU shared memory inside one persistent CUDA kernel, reaching 54.7 billion agent-events per second on one RTX 5090.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://shakyajayakody.github.io/blog/KineticSim/">
+<meta property="og:url" content="https://shakyajayakody.github.io/blog/KineticSim/">
+<meta property="og:image" content="https://shakyajayakody.github.io/blog/KineticSim/images/kineticsim-architecture.png">
+<meta property="og:site_name" content="Dr. Shakya Jayakody">
+<meta name="twitter:image" content="https://shakyajayakody.github.io/blog/KineticSim/images/kineticsim-architecture.png">
+<!-- Site integration: saved theme (same key as the home page), fonts, icons, favicon -->
+<script>
+try{if((localStorage.getItem("theme")||"light")==="dark"){document.documentElement.classList.add("dark-theme");}}catch(e){}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Arvo:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" type="image/png" sizes="48x48" href="../../shakya/shakya_files/favicon-48x48.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../../shakya/shakya_files/favicon-180x180.png">
+<style>
+:root{
+  --bg:#fbfaf7;--surface:#ffffff;--fg:#1d1c1a;--muted:#65625c;--line:#e4e0d8;
+  --accent:#b3261e;--accent-soft:#fbeeec;--code-bg:#f5f2eb;--code-fg:#2a2825;
+  --tok-com:#7c786f;--tok-kw:#1f4e9c;--tok-bi:#0f6f68;--tok-str:#3b7426;--tok-num:#a0530c;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#131312;--surface:#1c1c1a;--fg:#ebe8e2;--muted:#a5a199;--line:#34322e;
+    --accent:#ff8a7a;--accent-soft:#2b1a17;--code-bg:#1a1a18;--code-fg:#e6e3dd;
+    --tok-com:#8f8b83;--tok-kw:#8ab4f8;--tok-bi:#5fd4c8;--tok-str:#a8d695;--tok-num:#f0b072;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);
+  font-size:1.0625rem;line-height:1.7;-webkit-font-smoothing:antialiased}
+@media (min-width:40rem){body{font-size:1.125rem}}
+
+/* Layout: a centred text column; figures may break out into the wider track. */
+.ks-post{display:grid;
+  grid-template-columns:[full-start] minmax(1rem,1fr) [wide-start] minmax(0,8rem)
+    [content-start] min(42rem,100% - 2rem) [content-end] minmax(0,8rem) [wide-end]
+    minmax(1rem,1fr) [full-end];
+  padding:clamp(2rem,6vw,5rem) 0 5rem;overflow-wrap:break-word}
+.ks-post>*{grid-column:content;min-width:0;margin:0}
+.ks-post>*+*{margin-top:1.3em}
+.ks-post>.ks-wide{grid-column:wide}
+
+/* Header */
+.ks-header{padding-bottom:1.9rem;border-bottom:1px solid var(--line)}
+.ks-header h1{margin:0;font-family:var(--serif);font-weight:700;letter-spacing:-.015em;
+  font-size:clamp(2.05rem,1.2rem + 4vw,3.35rem);line-height:1.08;text-wrap:balance}
+.ks-byline{margin:1.15rem 0 0;color:var(--muted);font-size:.95em}
+.ks-credit{margin:.3rem 0 0;color:var(--muted);font-size:.95em}
+.ks-links{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:1.3rem 0 0;font-size:.88em}
+.ks-post a{color:var(--accent);text-underline-offset:.16em;text-decoration-thickness:.06em}
+.ks-post a.ks-btn{display:inline-block;padding:.45em .9em;border:1px solid var(--line);
+  border-radius:.7rem;background:var(--surface);color:var(--fg);text-decoration:none;
+  font-weight:500;overflow-wrap:anywhere}
+.ks-btn b{color:var(--accent);font-weight:700;margin-right:.25em}
+.ks-post a.ks-btn:hover{border-color:var(--accent)}
+.ks-license{color:var(--muted)}
+.ks-header+p{margin-top:1.9rem;font-size:1.1em;line-height:1.65}
+
+/* Headings */
+.ks-post>h2{font-family:var(--serif);font-weight:700;letter-spacing:-.012em;text-wrap:balance;
+  font-size:clamp(1.55rem,1.25rem + 1.3vw,2rem);line-height:1.2;margin-top:3.3rem;scroll-margin-top:1.5rem}
+.ks-post>h3{font-size:1.18em;font-weight:700;line-height:1.3;margin-top:2.4rem;scroll-margin-top:1.5rem;text-wrap:balance}
+.ks-post>h2+*,.ks-post>h3+*{margin-top:.75em}
+.ks-post>h2+h3{margin-top:1.4rem}
+
+/* Lists */
+.ks-post ul,.ks-post ol{padding-left:1.35em}
+.ks-post li+li{margin-top:.5em}
+.ks-post li::marker{color:var(--accent)}
+
+/* Key results */
+.ks-key{margin-top:2rem;padding:1.1rem 1.3rem 1.25rem;background:var(--accent-soft);
+  border-left:4px solid var(--accent);border-radius:0 .6rem .6rem 0}
+.ks-key-title{margin:0 0 .55rem;font-size:.76em;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--accent)}
+.ks-key ul{margin:0;padding-left:1.15em}
+
+/* Contents */
+.ks-toc{border:1px solid var(--line);border-radius:.6rem;background:var(--surface);font-size:.93em}
+.ks-toc summary{cursor:pointer;padding:.7rem 1rem;font-weight:600}
+.ks-toc ol{margin:0;padding:0 1rem 1rem 2.5rem;columns:2 16rem;column-gap:2.5rem}
+.ks-toc li{margin:0 0 .35em;break-inside:avoid}
+.ks-post .ks-toc a{color:inherit;text-decoration:none}
+.ks-post .ks-toc a:hover{color:var(--accent);text-decoration:underline}
+
+/* Code */
+.ks-post :not(pre)>code{font-family:var(--mono);font-size:.86em;background:var(--code-bg);
+  padding:.12em .36em;border-radius:.3em;overflow-wrap:anywhere}
+.ks-code{border:1px solid var(--line);border-radius:.6rem;background:var(--code-bg);overflow:hidden}
+.ks-code[data-lang]::before{content:attr(data-lang);display:block;padding:.4rem 1rem;
+  font:600 .68rem/1.5 var(--sans);letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);border-bottom:1px solid var(--line)}
+.ks-code pre{margin:0;padding:.9rem 1rem 1rem;overflow-x:auto;font-family:var(--mono);
+  font-size:.8125rem;line-height:1.6;color:var(--code-fg);tab-size:4}
+.ks-code code{font:inherit}
+.ks-code-wrap pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.t-com{color:var(--tok-com);font-style:italic}
+.t-kw{color:var(--tok-kw)}.t-bi{color:var(--tok-bi)}
+.t-str{color:var(--tok-str)}.t-num{color:var(--tok-num)}
+
+/* Tables */
+.ks-table{overflow-x:auto;border:1px solid var(--line);border-radius:.6rem;background:var(--surface)}
+.ks-table table{border-collapse:collapse;width:100%;font-size:.86em;line-height:1.45;
+  font-variant-numeric:tabular-nums}
+.ks-table th,.ks-table td{padding:.6rem .85rem;text-align:left;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+.ks-table thead th{vertical-align:bottom;font-size:.9em;font-weight:600;color:var(--muted);
+  border-bottom:2px solid var(--line)}
+.ks-table tbody th{font-weight:500}
+.ks-table tbody tr:last-child>*{border-bottom:0}
+.ks-table .r{text-align:right}
+.ks-table td.r{white-space:nowrap}
+.ks-table tr.ks-hl>*{background:var(--accent-soft)}
+@media (max-width:40rem){
+  .ks-table table{font-size:.8em}
+  .ks-table th,.ks-table td{padding:.5rem .6rem}
+  .ks-table tbody th{min-width:7.5rem}
+}
+
+/* Figures (plots keep a white ground in both colour schemes) */
+.ks-post>.ks-fig{margin-top:2.1rem}
+.ks-fig-frame{background:#fff;border:1px solid var(--line);border-radius:.6rem;
+  padding:clamp(.5rem,2vw,1.25rem)}
+.ks-fig-frame a{display:block;cursor:zoom-in}
+.ks-fig img{display:block;width:100%;height:auto}
+.ks-fig figcaption{max-width:42rem;margin:.75rem auto 0;font-size:.85em;line-height:1.5;
+  color:var(--muted);text-align:center}
+.ks-fig-narrow{justify-self:center;width:min(100%,31rem)}
+.ks-post>.ks-fig+*{margin-top:2.1rem}
+
+@media print{.ks-toc{display:none}.ks-post{padding-top:0}}
+</style>
+<!-- Site header and palette for blog pages. Must come after the post's own <style>. -->
+<link rel="stylesheet" href="../blog.css?v=1.0">
+</head>
+<body class="blog-page">
+<header class="site-header">
+<div class="header-container">
+<div class="header-logo"><a href="../../">Shakya <span>Jayakody</span></a></div>
+<button class="menu-toggle" aria-label="Toggle Navigation Menu" id="mobile-menu-btn"><i class="fa fa-bars"></i></button>
+<nav class="nav-menu" id="nav-menu" aria-label="Site">
+<a href="../../#about" class="nav-link">About</a>
+<a href="../../#education" class="nav-link">Education</a>
+<a href="../../#research" class="nav-link">Research</a>
+<a href="../../#publications" class="nav-link">Publications</a>
+<a href="../../#teaching" class="nav-link">Teaching</a>
+<a href="../" class="nav-link active">Blog</a>
+<a href="../../#news" class="nav-link">News</a>
+<button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Theme"><i class="fa fa-moon-o" id="theme-icon"></i></button>
+</nav>
+</div>
+</header>
+
+<article class="ks-post">
+<p class="blog-breadcrumb"><a href="../">Blog</a> / KineticSim</p>
+
+<header class="ks-header">
+<h1>KineticSim: Simulating 54 Billion Market Events per Second on One GPU</h1>
+<p class="ks-byline">By Shakya Jayakody · 19 min read</p>
+<p class="ks-credit">Based on research done jointly with Prarthinie Jayakody, co-author of the paper.</p>
+<p class="ks-links"><a class="ks-btn" href="https://arxiv.org/abs/2606.21784"><b>Paper</b> arXiv:2606.21784</a>
+<a class="ks-btn" href="https://github.com/KineticSim/Project-KineticSim"><b>Code</b> github.com/KineticSim/Project-KineticSim</a>
+<span class="ks-license">Apache 2.0 licensed</span></p>
+</header>
+
+<p>If you want to know what happens to a market when momentum traders double, when market makers step back, or when an exchange replaces continuous trading with batch auctions, you cannot run the experiment on a real exchange. You simulate it: build a market out of software agents, let them trade, and watch what emerges.</p>
+
+<p>The catch is scale. One simulated market is an anecdote. A credible answer needs thousands of independent markets for the statistics and hundreds of parameter settings for the map, and that is where current tools slow down. CPU simulators step through agents one at a time. GPU frameworks such as PyTorch and JAX are far faster, but they pay a toll at every time step: launch a kernel, read the order book out of the GPU&#x27;s global memory, write it back.</p>
+
+<p>KineticSim is a small CUDA engine built to remove that toll. It launches <strong>one</strong> kernel for the entire simulation, keeps every market&#x27;s order book in on-chip shared memory from the first step to the last, and clears each auction with a cooperative parallel scan. The core kernel is about 140 lines of CUDA.</p>
+
+<aside class="ks-key" aria-label="Key results">
+<p class="ks-key-title">Key results</p>
+<ul>
+<li>Peak throughput of <strong>54.7 billion agent-events per second</strong> on a single NVIDIA RTX 5090.</li>
+<li>On one fixed workload: <strong>8.4×</strong> faster than a hand-written CUDA kernel that lacks only our two optimizations, <strong>27.8×</strong> faster than an optimized PyTorch GPU implementation, <strong>42.8×</strong> faster than JIT-compiled JAX, and <strong>3,406×</strong> faster than single-core vectorized NumPy.</li>
+<li>Roughly <strong>10× less GPU memory</strong> than PyTorch.</li>
+<li>The optimized and naive CUDA engines produce <strong>bitwise-identical</strong> order books, and the GPU results are statistically indistinguishable from the NumPy reference.</li>
+<li>A 189-configuration study of market composition, 49.6 billion agent-events in total, ran in <strong>1.4 seconds</strong> of GPU time and exposed a sharp volatility phase transition.</li>
+</ul>
+</aside>
+
+<nav class="ks-toc" aria-label="Contents"><details><summary>Contents</summary>
+<ol>
+<li><a href="#why-market-simulation-needs-this-much-speed">Why market simulation needs this much speed</a></li>
+<li><a href="#where-the-time-goes-on-a-gpu">Where the time goes on a GPU</a></li>
+<li><a href="#the-market-we-simulate">The market we simulate</a></li>
+<li><a href="#the-idea-launch-once-keep-the-book-on-chip">The idea: launch once, keep the book on-chip</a></li>
+<li><a href="#random-numbers-with-no-state">Random numbers with no state</a></li>
+<li><a href="#what-the-analysis-predicts">What the analysis predicts</a></li>
+<li><a href="#what-we-measured">What we measured</a></li>
+<li><a href="#checking-that-fast-is-also-correct">Checking that fast is also correct</a></li>
+<li><a href="#what-the-speed-is-for-a-phase-diagram-of-market-composition">What the speed is for: a phase diagram of market composition</a></li>
+<li><a href="#what-kineticsim-does-not-do">What KineticSim does not do</a></li>
+<li><a href="#beyond-markets">Beyond markets</a></li>
+<li><a href="#run-it-yourself">Run it yourself</a></li>
+<li><a href="#citation">Citation</a></li>
+</ol>
+</details></nav>
+
+<h2 id="why-market-simulation-needs-this-much-speed">Why market simulation needs this much speed</h2>
+
+<p>Agent-based models (ABMs) study markets from the bottom up. Instead of assuming a price process, you specify how individual participants behave (noise traders, trend followers, market makers) and let prices, spreads, and volatility emerge from their interaction. ABMs are used for market design, regulatory stress-testing, and as training environments for reinforcement learning.</p>
+
+<p>Three things make them expensive:</p>
+
+<ul>
+<li><strong>Ensembles.</strong> A single run is one draw from a noisy process. Stable statistics need hundreds or thousands of independent markets.</li>
+<li><strong>Sweeps.</strong> The interesting questions are about how behavior <em>changes</em> as you vary the rules or the mix of participants, which multiplies the ensemble by the size of the parameter grid.</li>
+<li><strong>Steps.</strong> Every market advances through hundreds or thousands of time steps, and each step depends on the one before it.</li>
+</ul>
+
+<p>Multiply those together and the numbers get large quickly. The composition study later in this post covers 189 parameter settings × 1,024 markets × 256 agents × 1,000 steps: 49.6 billion agent decisions. A well-vectorized single-core NumPy implementation needs about 54 minutes for that. We wanted it to take seconds.</p>
+
+<h2 id="where-the-time-goes-on-a-gpu">Where the time goes on a GPU</h2>
+
+<p>Moving the simulation to a GPU with an array framework is the obvious first step, and it helps. But the usual structure, a host-side loop that calls GPU operations once per step, has two costs built in.</p>
+
+<p><strong>Launch overhead.</strong> Every kernel launch costs roughly 5–10 µs of host-side work before any computation happens. For a small ensemble, the useful work in a step can take less than a microsecond. A loop over <em>S</em> steps launches at least <em>S</em> kernels, and a tensor framework usually launches many per step. For small and medium workloads the program spends most of its time starting work, not doing it.</p>
+
+<p><strong>Global-memory round trips.</strong> Between steps the order book has to live somewhere, and in a launch-per-step design that place is the GPU&#x27;s global memory. Each step loads the book, materializes intermediate tensors, and writes the result back. A global-memory access costs hundreds of cycles. An access to on-chip shared memory costs a few.</p>
+
+<h3 id="can-a-compiler-fix-this">Can a compiler fix this?</h3>
+
+<p>Partly. PyTorch 2&#x27;s <code>torch.compile</code> and JAX&#x27;s XLA backend fuse the operations inside a step into fewer kernels, and CUDA Graphs can bundle many launches into one replay. JAX&#x27;s <code>lax.scan</code> can even compile the whole multi-step loop into a single program.</p>
+
+<p>What none of them offer is a way to say: <em>this block of threads owns this piece of on-chip memory, and it stays alive across loop iterations.</em> These compilers reason about tensor expressions, not about the lifetime of shared memory. Fusion shortens the memory pass within a step. It cannot remove the round trip between steps. That part still has to be written by hand.</p>
+
+<h2 id="the-market-we-simulate">The market we simulate</h2>
+
+<p>KineticSim simulates a <strong>uniform-price call auction</strong>. Orders accumulate over a discrete interval, then the whole batch clears at the single price that maximizes traded volume. This is the mechanism behind frequent batch auctions, proposed by Budish, Cramton, and Shim as an alternative to continuous trading.</p>
+
+<p>Prices live on a grid of <em>L</em> ticks. Let <code>BUY[p]</code> and <code>SELL[p]</code> be the total quantity bid and offered at tick <code>p</code>. Then:</p>
+
+<div class="ks-code"><pre tabindex="0"><code>Dcum[p] = sum of BUY[q]  for q &gt;= p     demand willing to pay p or more
+Scum[p] = sum of SELL[q] for q &lt;= p     supply willing to accept p or less
+p*      = argmax over p of min(Dcum[p], Scum[p])     clearing price
+V       = min(Dcum[p*], Scum[p*])                    executed volume</code></pre></div>
+
+<p>A five-tick example makes this concrete:</p>
+
+<div class="ks-table" role="region" aria-label="Table" tabindex="0"><table>
+<thead><tr>
+<th scope="col">Price tick <code>p</code></th>
+<th scope="col" class="r">0</th>
+<th scope="col" class="r">1</th>
+<th scope="col" class="r">2</th>
+<th scope="col" class="r">3</th>
+<th scope="col" class="r">4</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row"><code>BUY</code></th>
+<td class="r">10</td>
+<td class="r">5</td>
+<td class="r">8</td>
+<td class="r">0</td>
+<td class="r">2</td>
+</tr>
+<tr>
+<th scope="row"><code>SELL</code></th>
+<td class="r">0</td>
+<td class="r">4</td>
+<td class="r">7</td>
+<td class="r">6</td>
+<td class="r">3</td>
+</tr>
+<tr>
+<th scope="row"><code>Dcum</code> (suffix sum of BUY)</th>
+<td class="r">25</td>
+<td class="r">15</td>
+<td class="r">10</td>
+<td class="r">2</td>
+<td class="r">2</td>
+</tr>
+<tr>
+<th scope="row"><code>Scum</code> (prefix sum of SELL)</th>
+<td class="r">0</td>
+<td class="r">4</td>
+<td class="r">11</td>
+<td class="r">17</td>
+<td class="r">20</td>
+</tr>
+<tr>
+<th scope="row"><code>min(Dcum, Scum)</code></th>
+<td class="r">0</td>
+<td class="r">4</td>
+<td class="r"><strong>10</strong></td>
+<td class="r">2</td>
+<td class="r">2</td>
+</tr>
+</tbody></table></div>
+
+<p>The auction clears at <code>p* = 2</code> with a volume of 10 units. The highest-priced buyers and lowest-priced sellers fill first. One unit of sell interest at tick 2 goes unmatched, so the book that carries into the next step is bids <code>[10, 5, 0, 0, 0]</code> and asks <code>[0, 0, 1, 6, 3]</code>. Because unmatched interest persists, spread, depth, and price dynamics emerge on their own.</p>
+
+<p>We chose this mechanism for two reasons. It is a real market design, not a toy. And it reduces to prefix sums, a minimum, and an argmax over the price grid, so the same model can be implemented <em>identically</em> in NumPy, PyTorch, JAX, and hand-written CUDA. That is what makes the speed comparison fair: every backend computes the same thing.</p>
+
+<h3 id="the-agents">The agents</h3>
+
+<p>Each market holds <em>A</em> agents, and every agent submits one order per step.</p>
+
+<div class="ks-table" role="region" aria-label="Table" tabindex="0"><table>
+<thead><tr>
+<th scope="col">Agent</th>
+<th scope="col">What it does</th>
+</tr></thead><tbody>
+<tr class="ks-hl">
+<th scope="row"><strong>Noise trader</strong></th>
+<td>Buys or sells with equal probability at a random offset around the mid price.</td>
+</tr>
+<tr class="ks-hl">
+<th scope="row"><strong>Momentum trader</strong></th>
+<td>Trades in the direction of the last mid-price move.</td>
+</tr>
+<tr class="ks-hl">
+<th scope="row"><strong>Market maker</strong></th>
+<td>Alternates between posting a bid and an ask at a fixed half-spread from the mid. Never crosses the spread.</td>
+</tr>
+<tr class="ks-hl">
+<th scope="row"><strong>Fundamentalist</strong></th>
+<td>Trades back toward a fundamental value anchored at the opening price.</td>
+</tr>
+</tbody></table></div>
+
+<p>Every class except market makers occasionally sends a marketable order that is guaranteed to execute. Order sizes are small integers, which turns out to matter for correctness (more on that below). The performance benchmarks use the first three classes. Fundamentalists join for the composition experiment.</p>
+
+<h2 id="the-idea-launch-once-keep-the-book-on-chip">The idea: launch once, keep the book on-chip</h2>
+
+<p>We call the underlying pattern <strong>persistent, state-carrying clearing</strong>. The mapping onto the GPU is direct:</p>
+
+<ul>
+<li><strong>One market = one CUDA thread block.</strong> <em>M</em> markets means <em>M</em> blocks, which never need to talk to each other.</li>
+<li><strong>One price tick = one thread.</strong> With <em>L</em> = 128 ticks, each block has 128 threads, and thread <code>t</code> owns tick <code>t</code>.</li>
+<li><strong>The order book lives in shared memory.</strong> Seven float arrays and one int array of length <em>L</em> come to 32 × <em>L</em> bytes: 4 KB per market at <em>L</em> = 128, and 32 KB even at <em>L</em> = 1,024.</li>
+<li><strong>One kernel launch runs every step.</strong> The book touches global memory once, at the very end.</li>
+</ul>
+
+<figure class="ks-fig ks-fig-narrow">
+<div class="ks-fig-frame"><a href="images/kineticsim-architecture.png" aria-label="Open figure at full size"><img src="images/kineticsim-architecture.png" alt="KineticSim architecture: the host CPU launches one kernel; each CUDA block simulates one independent market, holding its limit-order book in shared memory and looping over all simulation steps internally." width="1800" height="1814" decoding="async"></a></div>
+<figcaption>One kernel launch. Each block is a market, and its order book stays in shared memory while a persistent loop runs every step.</figcaption>
+</figure>
+
+<p>Persistent kernels are not new. They have been used as work-queue schedulers in ray tracing, and to keep read-only weights on-chip in recurrent networks. What is persistent here is different: it is the <strong>mutable simulation state itself</strong>, read and written by every agent at every step. And because each market is confined to one block, the only synchronization is the cheap intra-block barrier.</p>
+
+<p>The whole simulation is a single launch:</p>
+
+<div class="ks-code" data-lang="CUDA C++"><pre tabindex="0"><code><span class="t-com">// M blocks (markets) x L threads (price ticks), one launch for all steps</span>
+simulate_kernel&lt;&lt;&lt;M, L, shmem&gt;&gt;&gt;(P, d_atype, d_bid, d_ask,
+                                 d_lastprice, d_vol, d_trades, d_pricehist);</code></pre></div>
+
+<p>Inside the kernel, the book is declared in shared memory and the step loop never leaves the device:</p>
+
+<div class="ks-code" data-lang="CUDA C++"><pre tabindex="0"><code><span class="t-kw">extern</span> <span class="t-bi">__shared__</span> <span class="t-kw">float</span> smem[];
+<span class="t-kw">float</span>* s_bid   = smem;           <span class="t-com">// resting bids</span>
+<span class="t-kw">float</span>* s_ask   = s_bid   + L;    <span class="t-com">// resting asks</span>
+<span class="t-kw">float</span>* s_BUY   = s_ask   + L;    <span class="t-com">// this step's pooled buy interest</span>
+<span class="t-kw">float</span>* s_SELL  = s_BUY   + L;    <span class="t-com">// this step's pooled sell interest</span>
+<span class="t-kw">float</span>* s_Dcum  = s_SELL  + L;    <span class="t-com">// cumulative demand</span>
+<span class="t-kw">float</span>* s_Scum  = s_Dcum  + L;    <span class="t-com">// cumulative supply</span>
+<span class="t-kw">float</span>* s_match = s_Scum  + L;    <span class="t-com">// executable volume per tick</span>
+<span class="t-kw">int</span>*   s_idx   = (<span class="t-kw">int</span>*)(s_match + L);
+
+<span class="t-kw">for</span> (<span class="t-kw">int</span> step = <span class="t-num">0</span>; step &lt; P.n_steps; ++step) {
+    <span class="t-com">// 1. best bid / best ask  -&gt;  mid price</span>
+    <span class="t-com">// 2. agents decide; orders are scattered onto the price grid</span>
+    <span class="t-com">// 3. parallel scans       -&gt;  cumulative demand and supply</span>
+    <span class="t-com">// 4. parallel argmax      -&gt;  clearing price</span>
+    <span class="t-com">// 5. update the resting book (still in shared memory)</span>
+}
+
+<span class="t-com">// only now does the book reach global memory</span>
+d_bid_out[market * L + t] = s_bid[t];
+d_ask_out[market * L + t] = s_ask[t];</code></pre></div>
+
+<p>A note on the price grid: <em>L</em> is not the full price range of an asset. It is a local window of ticks around the active trading zone, where liquidity actually concentrates. That keeps the working set small enough to live entirely on-chip.</p>
+
+<h3 id="step-1-find-the-mid-price">Step 1: find the mid price</h3>
+
+<p>Every thread holding resting quantity proposes its own tick with a shared-memory <code>atomicMax</code> (best bid) or <code>atomicMin</code> (best ask). The mid price and the sign of its last move are then visible to the whole block after one barrier.</p>
+
+<h3 id="step-2-agents-decide-orders-aggregate">Step 2: agents decide, orders aggregate</h3>
+
+<p>Thread <code>t</code> handles agents <code>t</code>, <code>t + L</code>, <code>t + 2L</code>, and so on, so any number of agents fits in a block. Each order is added to the grid with a shared-memory atomic:</p>
+
+<div class="ks-code" data-lang="CUDA C++"><pre tabindex="0"><code><span class="t-kw">for</span> (<span class="t-kw">int</span> a = t; a &lt; A; a += L) {
+    <span class="t-kw">const</span> <span class="t-kw">int</span> aty = atype[market * A + a];
+    <span class="t-kw">const</span> Order o = decide(P, market, a, step, mid, ret, aty);
+    <span class="t-kw">if</span> (o.side &gt; <span class="t-num">0</span>) <span class="t-bi">atomicAdd</span>(&amp;s_BUY[o.price],  o.qty);
+    <span class="t-kw">else</span>            <span class="t-bi">atomicAdd</span>(&amp;s_SELL[o.price], o.qty);
+}</code></pre></div>
+
+<h3 id="step-3-cumulative-demand-and-supply-in-log-l-rounds">Step 3: cumulative demand and supply in log₂ L rounds</h3>
+
+<p>A serial clearing pass walks the price grid one tick at a time. Here, all <em>L</em> threads run a Hillis–Steele scan together: a prefix scan for supply and a suffix scan for demand, in the same loop.</p>
+
+<div class="ks-code" data-lang="CUDA C++"><pre tabindex="0"><code><span class="t-kw">for</span> (<span class="t-kw">int</span> off = <span class="t-num">1</span>; off &lt; L; off &lt;&lt;= <span class="t-num">1</span>) {
+    <span class="t-kw">float</span> addS = (t &gt;= off)    ? s_Scum[t - off] : <span class="t-num">0.0f</span>;   <span class="t-com">// look left</span>
+    <span class="t-kw">float</span> addD = (t + off &lt; L) ? s_Dcum[t + off] : <span class="t-num">0.0f</span>;   <span class="t-com">// look right</span>
+    <span class="t-bi">__syncthreads</span>();
+    s_Scum[t] += addS;
+    s_Dcum[t] += addD;
+    <span class="t-bi">__syncthreads</span>();
+}</code></pre></div>
+
+<p>For 128 ticks that is 7 rounds instead of 128 sequential additions.</p>
+
+<h3 id="step-4-find-the-clearing-price">Step 4: find the clearing price</h3>
+
+<p>Each thread computes <code>min(Dcum[t], Scum[t])</code>, and the block runs a tournament reduction to find the tick with the largest executable volume. Ties go to the lowest price, which keeps the result deterministic.</p>
+
+<div class="ks-code" data-lang="CUDA C++"><pre tabindex="0"><code><span class="t-kw">for</span> (<span class="t-kw">int</span> stride = L &gt;&gt; <span class="t-num">1</span>; stride &gt; <span class="t-num">0</span>; stride &gt;&gt;= <span class="t-num">1</span>) {
+    <span class="t-kw">if</span> (t &lt; stride) {
+        <span class="t-kw">float</span> a0 = s_match[t], b0 = s_match[t + stride];
+        <span class="t-kw">if</span> (b0 &gt; a0 || (b0 == a0 &amp;&amp; s_idx[t + stride] &lt; s_idx[t])) {
+            s_match[t] = b0;
+            s_idx[t]   = s_idx[t + stride];
+        }
+    }
+    <span class="t-bi">__syncthreads</span>();
+}</code></pre></div>
+
+<h3 id="step-5-update-the-book-without-a-serial-pass">Step 5: update the book without a serial pass</h3>
+
+<p>Allocating fills by price priority sounds sequential, but each tick can work out its own fill independently. <code>Dcum[t] - BUY[t]</code> is the demand with strictly higher priority than tick <code>t</code>. Whatever volume remains after serving it goes to tick <code>t</code>, capped at what tick <code>t</code> has.</p>
+
+<div class="ks-code" data-lang="CUDA C++"><pre tabindex="0"><code><span class="t-kw">const</span> <span class="t-kw">float</span> tb = <span class="t-bi">fminf</span>(<span class="t-bi">fmaxf</span>(V - (s_Dcum[t] - s_BUY[t]),  <span class="t-num">0.0f</span>), s_BUY[t]);
+<span class="t-kw">const</span> <span class="t-kw">float</span> ts = <span class="t-bi">fminf</span>(<span class="t-bi">fmaxf</span>(V - (s_Scum[t] - s_SELL[t]), <span class="t-num">0.0f</span>), s_SELL[t]);
+s_bid[t] = s_BUY[t]  - tb;   <span class="t-com">// what is left rests in the book</span>
+s_ask[t] = s_SELL[t] - ts;</code></pre></div>
+
+<p>The residual book is already sitting in shared memory when the next step begins. Nothing was loaded and nothing was stored.</p>
+
+<h2 id="random-numbers-with-no-state">Random numbers with no state</h2>
+
+<p>Keeping the simulation on-chip creates a problem: random numbers. Conventional generators keep 16 to 128 bytes of state per stream. For an ensemble of 4.2 million agents that is 67 to 536 MB of global memory, loaded and stored at every step, which would reintroduce exactly the traffic we just removed.</p>
+
+<p>KineticSim uses a stateless, counter-based generator built on SplitMix64. A random number is a pure function of <em>(seed, agent, step, channel)</em>:</p>
+
+<div class="ks-code" data-lang="CUDA C++"><pre tabindex="0"><code><span class="t-bi">__device__</span> <span class="t-bi">__forceinline__</span> <span class="t-kw">uint64_t</span> splitmix64(<span class="t-kw">uint64_t</span> x) {
+    x += <span class="t-num">0x9E3779B97F4A7C15ULL</span>;
+    x = (x ^ (x &gt;&gt; <span class="t-num">30</span>)) * <span class="t-num">0xBF58476D1CE4E5B9ULL</span>;
+    x = (x ^ (x &gt;&gt; <span class="t-num">27</span>)) * <span class="t-num">0x94D049BB133111EBULL</span>;
+    <span class="t-kw">return</span> x ^ (x &gt;&gt; <span class="t-num">31</span>);
+}
+
+<span class="t-bi">__device__</span> <span class="t-bi">__forceinline__</span> <span class="t-kw">float</span> urand(<span class="t-kw">uint64_t</span> seed, <span class="t-kw">uint32_t</span> gid,
+                                        <span class="t-kw">uint32_t</span> step, <span class="t-kw">uint32_t</span> ch) {
+    <span class="t-kw">uint64_t</span> k = seed ^ (<span class="t-num">0x123456789ABCDEFULL</span> * (<span class="t-kw">uint64_t</span>)ch);
+    k = splitmix64(k + <span class="t-num">0x9E3779B97F4A7C15ULL</span> * (<span class="t-kw">uint64_t</span>)gid);
+    k = splitmix64(k + <span class="t-num">0xD1B54A32D192ED03ULL</span> * (<span class="t-kw">uint64_t</span>)step);
+    <span class="t-kw">return</span> (<span class="t-kw">float</span>)((<span class="t-kw">double</span>)(k &gt;&gt; <span class="t-num">11</span>) * (<span class="t-num">1.0</span> / <span class="t-num">9007199254740992.0</span>));
+}</code></pre></div>
+
+<p>There is no state to store, no initialization cost, and runs are reproducible. Any agent&#x27;s draw at any step can be recomputed on its own.</p>
+
+<h2 id="what-the-analysis-predicts">What the analysis predicts</h2>
+
+<p>We analyzed both designs in the work–depth model. <em>Work</em> is the total number of operations. <em>Depth</em> is the longest chain of operations that must happen one after another.</p>
+
+<div class="ks-table" role="region" aria-label="Table" tabindex="0"><table>
+<thead><tr>
+<th scope="col"></th>
+<th scope="col">Naive CUDA kernel</th>
+<th scope="col">KineticSim</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">Per-step work</th>
+<td>Θ(M · (L + A))</td>
+<td>Θ(M · (L log L + A))</td>
+</tr>
+<tr>
+<th scope="row">Per-step depth</th>
+<td>Θ(L + A)</td>
+<td>Θ(log L + ⌈A / L⌉)</td>
+</tr>
+<tr>
+<th scope="row">Global-memory traffic over S steps</th>
+<td>Θ(S · M · L)</td>
+<td>Θ(M · L)</td>
+</tr>
+<tr>
+<th scope="row">Kernel launches</th>
+<td>S</td>
+<td>1</td>
+</tr>
+</tbody></table></div>
+
+<p>Two things stand out. KineticSim does slightly <em>more</em> total work, because a Hillis–Steele scan costs L log L operations where a serial scan costs L. It trades that for a much shorter critical path, which is the right trade on hardware with thousands of idle threads. And the global-memory traffic no longer depends on how long the simulation runs.</p>
+
+<h2 id="what-we-measured">What we measured</h2>
+
+<p><strong>Setup.</strong> AMD Ryzen 9 9950X3D and NVIDIA RTX 5090 (32 GB), CUDA Toolkit 13.2, PyTorch 2.10. Every run uses <em>L</em> = 128 price ticks and <em>S</em> = 500 steps, and GPU results are the median of 5 trials (11 for latency). The much slower CPU reference was run once per configuration. GPU timing uses CUDA events after a warm-up. Throughput is measured in agent-events per second: <em>M × A × S</em> divided by wall time.</p>
+
+<p><strong>Baselines.</strong> All four implement the identical market model.</p>
+
+<ul>
+<li><strong>CPU (NumPy):</strong> fully vectorized across markets, running on a single core.</li>
+<li><strong>PyTorch GPU:</strong> fully vectorized, no Python loops over agents, <code>torch.no_grad()</code>, in-place <code>scatter_add_</code> for order aggregation.</li>
+<li><strong>JAX GPU:</strong> <code>jax.jit</code> with the entire multi-step loop compiled into one XLA program via <code>jax.lax.scan</code>.</li>
+<li><strong>Naive custom CUDA:</strong> hand-written CUDA with one thread per market, the book in global memory, one launch per step, and serial scans. It shares KineticSim&#x27;s agent logic and RNG exactly, so it isolates the two design choices.</li>
+</ul>
+
+<h3 id="head-to-head">Head to head</h3>
+
+<p>Fixed workload: 8,192 markets, 256 agents each, 500 steps (about 1.05 billion agent-events).</p>
+
+<div class="ks-table" role="region" aria-label="Table" tabindex="0"><table>
+<thead><tr>
+<th scope="col">Backend</th>
+<th scope="col" class="r">Throughput (events/s)</th>
+<th scope="col" class="r">Wall time</th>
+<th scope="col" class="r">ns per event</th>
+<th scope="col" class="r">KineticSim is faster by</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">CPU (NumPy, single core)</th>
+<td class="r">1.53 × 10⁷</td>
+<td class="r">68.6 s</td>
+<td class="r">65.5</td>
+<td class="r">3,406×</td>
+</tr>
+<tr>
+<th scope="row">JAX GPU</th>
+<td class="r">1.22 × 10⁹</td>
+<td class="r">862.6 ms</td>
+<td class="r">0.823</td>
+<td class="r">42.8×</td>
+</tr>
+<tr>
+<th scope="row">PyTorch GPU</th>
+<td class="r">1.87 × 10⁹</td>
+<td class="r">560.3 ms</td>
+<td class="r">0.534</td>
+<td class="r">27.8×</td>
+</tr>
+<tr>
+<th scope="row">Naive custom CUDA</th>
+<td class="r">6.19 × 10⁹</td>
+<td class="r">169.4 ms</td>
+<td class="r">0.162</td>
+<td class="r">8.4×</td>
+</tr>
+<tr class="ks-hl">
+<th scope="row"><strong>KineticSim</strong></th>
+<td class="r"><strong>5.20 × 10¹⁰</strong></td>
+<td class="r"><strong>20.2 ms</strong></td>
+<td class="r"><strong>0.019</strong></td>
+<td class="r"></td>
+</tr>
+</tbody></table></div>
+
+<figure class="ks-fig ks-wide">
+<div class="ks-fig-frame"><a href="images/kineticsim-speedup.png" aria-label="Open figure at full size"><img src="images/kineticsim-speedup.png" alt="Bar chart of speedups over CPU NumPy and PyTorch GPU on the fixed workload, and line chart of how the speedups change with the number of parallel markets." width="1800" height="645" loading="lazy" decoding="async"></a></div>
+<figcaption>Left: speedup of each GPU backend over NumPy and over PyTorch on the fixed workload. Right: how the custom CUDA engines&#x27; advantage changes with the number of markets.</figcaption>
+</figure>
+
+<h3 id="how-it-scales">How it scales</h3>
+
+<figure class="ks-fig ks-wide">
+<div class="ks-fig-frame"><a href="images/kineticsim-throughput.png" aria-label="Open figure at full size"><img src="images/kineticsim-throughput.png" alt="Throughput in agent-events per second versus number of parallel markets (left) and agents per market (right) for all backends. KineticSim is the top line in both panels." width="1800" height="770" loading="lazy" decoding="async"></a></div>
+<figcaption>Throughput as the number of markets grows (left, A = 256) and as agents per market grow (right, M = 8,192). The purple and pink lines are compiler-assisted PyTorch variants (CUDA Graphs and <code>torch.compile</code>).</figcaption>
+</figure>
+
+<div class="ks-table" role="region" aria-label="Table" tabindex="0"><table>
+<thead><tr>
+<th scope="col" class="r">Markets (M)</th>
+<th scope="col" class="r">KineticSim (events/s)</th>
+<th scope="col" class="r">vs NumPy</th>
+<th scope="col" class="r">vs PyTorch</th>
+<th scope="col" class="r">vs JAX</th>
+<th scope="col" class="r">vs naive CUDA</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">64</th>
+<td class="r">3.61 × 10⁹</td>
+<td class="r">177×</td>
+<td class="r">243×</td>
+<td class="r">315×</td>
+<td class="r">56.5×</td>
+</tr>
+<tr>
+<th scope="row">256</th>
+<td class="r">1.35 × 10¹⁰</td>
+<td class="r">641×</td>
+<td class="r">226×</td>
+<td class="r">301×</td>
+<td class="r">69.0×</td>
+</tr>
+<tr>
+<th scope="row">1,024</th>
+<td class="r">3.69 × 10¹⁰</td>
+<td class="r">1,749×</td>
+<td class="r">165×</td>
+<td class="r">240×</td>
+<td class="r">48.8×</td>
+</tr>
+<tr>
+<th scope="row">4,096</th>
+<td class="r">4.73 × 10¹⁰</td>
+<td class="r">2,960×</td>
+<td class="r">52×</td>
+<td class="r">77×</td>
+<td class="r">15.3×</td>
+</tr>
+<tr>
+<th scope="row">16,384</th>
+<td class="r">5.39 × 10¹⁰</td>
+<td class="r">3,695×</td>
+<td class="r">15×</td>
+<td class="r">23×</td>
+<td class="r">4.7×</td>
+</tr>
+</tbody></table></div>
+
+<p>The table shows two different regimes.</p>
+
+<p>Against the CPU, the advantage <strong>grows</strong> with the number of markets, because more markets expose more parallelism.</p>
+
+<p>Against PyTorch and JAX, the advantage is <strong>largest for small ensembles</strong> (243× and 315× at 64 markets) and <strong>shrinks</strong> as the ensemble grows (15× and 23× at 16,384 markets). Small ensembles are where launch overhead dominates, and that is the cost a persistent kernel removes entirely. At large scale the frameworks finally amortize their launches and become limited by memory bandwidth, and KineticSim is still more than an order of magnitude ahead because its state never leaves the chip.</p>
+
+<p>The peak, 5.47 × 10¹⁰ events per second, comes at 8,192 markets with 1,024 agents each: 4.2 billion agent decisions in 76.7 ms.</p>
+
+<h3 id="it-is-not-just-we-wrote-cuda">It is not just &quot;we wrote CUDA&quot;</h3>
+
+<p>The naive kernel is the important baseline. It is already free of Python and framework overhead, and it uses the same agent logic and the same random streams. It differs from KineticSim in exactly two ways: the book lives in global memory, and clearing is serial.</p>
+
+<p>That gap is 8.4× on the fixed workload, and it ranges from 4.7× at 16,384 markets to 69× at 256 markets. The speedup comes from on-chip state and logarithmic-depth clearing, not from the choice of language.</p>
+
+<h3 id="latency">Latency</h3>
+
+<figure class="ks-fig ks-wide">
+<div class="ks-fig-frame"><a href="images/kineticsim-latency.png" aria-label="Open figure at full size"><img src="images/kineticsim-latency.png" alt="Per-step latency on a log scale: CPU NumPy 63,468.5 µs, PyTorch GPU 1,150.7 µs, JAX GPU 1,704.1 µs, naive CUDA 339.3 µs, KineticSim 22.1 µs." width="1800" height="871" loading="lazy" decoding="async"></a></div>
+<figcaption>Per-step latency for 4,096 markets of 256 agents. GPU bars show the median with min–max range over 11 trials.</figcaption>
+</figure>
+
+<p>One step of 4,096 markets, which is more than a million agent decisions and 4,096 cleared auctions, takes a median of <strong>22.1 µs</strong>. PyTorch needs 1,150.7 µs, JAX 1,704.1 µs, and the naive kernel 339.3 µs. The spread between trials is tight because there is no per-step scheduling between CPU and GPU.</p>
+
+<h3 id="memory">Memory</h3>
+
+<figure class="ks-fig ks-wide">
+<div class="ks-fig-frame"><a href="images/kineticsim-memory-efficiency.png" aria-label="Open figure at full size"><img src="images/kineticsim-memory-efficiency.png" alt="GPU global-memory footprint versus number of markets (left) and time per agent-event versus number of markets (right)." width="1800" height="770" loading="lazy" decoding="async"></a></div>
+<figcaption>Left: peak GPU global memory. Right: amortized time per agent-event.</figcaption>
+</figure>
+
+<p>Because only the final state is written back, KineticSim uses roughly an order of magnitude less global memory than PyTorch at every scale, and about half as much as the naive kernel. At 16,384 markets the entire working set is about 34 MB, which leaves nearly all of the card free for whatever sits downstream, such as reinforcement-learning buffers.</p>
+
+<h2 id="checking-that-fast-is-also-correct">Checking that fast is also correct</h2>
+
+<p>A simulator that is fast and wrong is worse than useless, so we validated at three levels of strictness.</p>
+
+<p><strong>1. Bitwise identity between the two CUDA engines.</strong> In every configuration we benchmarked, KineticSim and the naive kernel produce identical order books and clearing statistics, bit for bit.</p>
+
+<p>This deserves a second look, because floating-point <code>atomicAdd</code> accumulates in a nondeterministic order, and floating-point addition is not associative in general. It holds here because order quantities are integers. Single-precision addition of integers is exact and associative below 2²⁴, and the volume at any tick is in the thousands. Different accumulation orders therefore give the same bits.</p>
+
+<p><strong>2. An analytical ground truth.</strong> The five-tick example above has a known answer. NumPy, PyTorch, JAX, naive CUDA, and KineticSim all return <code>p* = 2</code>, <code>V = 10</code>, and the same residual books. The clearing engine is also fuzz-tested for volume conservation and non-negative books.</p>
+
+<p><strong>3. Statistical agreement with the NumPy reference.</strong> The CUDA engines and NumPy use different random number generators, so their outputs cannot match bit for bit. They match in distribution:</p>
+
+<div class="ks-table" role="region" aria-label="Table" tabindex="0"><table>
+<thead><tr>
+<th scope="col">Backend (M = 4,096, A = 256)</th>
+<th scope="col" class="r">Mean clearing price</th>
+<th scope="col" class="r">Mean volume per market</th>
+<th scope="col" class="r">Price difference vs NumPy</th>
+</tr></thead><tbody>
+<tr>
+<th scope="row">CPU (NumPy)</th>
+<td class="r">63.937</td>
+<td class="r">96,392.1</td>
+<td class="r">reference</td>
+</tr>
+<tr>
+<th scope="row">PyTorch GPU</th>
+<td class="r">63.987</td>
+<td class="r">96,438.2</td>
+<td class="r">+0.08%</td>
+</tr>
+<tr>
+<th scope="row">Naive custom CUDA</th>
+<td class="r">63.941</td>
+<td class="r">96,381.2</td>
+<td class="r">+0.006%</td>
+</tr>
+<tr class="ks-hl">
+<th scope="row"><strong>KineticSim</strong></th>
+<td class="r"><strong>63.941</strong></td>
+<td class="r"><strong>96,381.2</strong></td>
+<td class="r"><strong>+0.006%</strong></td>
+</tr>
+</tbody></table></div>
+
+<p>Beyond the means, two-sample Kolmogorov–Smirnov tests on the per-market distributions of final clearing prices and total volumes, repeated over three seeds, give worst-case statistics of D = 0.018 (p = 0.55) for prices and D = 0.010 (p = 0.98) for volumes. The test cannot tell the two implementations apart.</p>
+
+<h2 id="what-the-speed-is-for-a-phase-diagram-of-market-composition">What the speed is for: a phase diagram of market composition</h2>
+
+<p>Benchmarks are a means to an end. The reason to build a fast engine is to run experiments that were previously too slow to bother with.</p>
+
+<p>We mapped how market behavior depends on who is trading. Two planes of the composition space:</p>
+
+<ul>
+<li><strong>Plane A:</strong> momentum-trader fraction (0 to 0.70) against market-maker fraction (0.05 to 0.30), with noise traders making up the rest. 90 cells.</li>
+<li><strong>Plane B:</strong> momentum fraction against fundamentalist fraction (0 to 0.30), with market makers fixed at 0.15. 99 feasible cells.</li>
+</ul>
+
+<p>Each of the 189 cells simulates 1,024 independent markets of 256 agents for 1,000 steps. In total that is 4.96 × 10¹⁰ agent-events, and it completes in <strong>1.4 seconds of GPU kernel time</strong> (5.6 seconds of wall-clock time including the statistics computed on the host). The single-core NumPy reference would need about 54 minutes per sweep.</p>
+
+<figure class="ks-fig ks-wide">
+<div class="ks-fig-frame"><a href="images/kineticsim-phase-diagram.png" aria-label="Open figure at full size"><img src="images/kineticsim-phase-diagram.png" alt="Four panels: volatility over the momentum-maker plane, excess kurtosis over the same plane, volatility over the momentum-fundamentalist plane, and the autocorrelation of returns and absolute returns." width="1800" height="1378" loading="lazy" decoding="async"></a></div>
+<figcaption>Top left: price volatility over the momentum × maker plane. Top right: excess kurtosis of returns. Bottom left: volatility over the momentum × fundamentalist plane (gray cells are infeasible). Bottom right: autocorrelation of returns and absolute returns at the standard configuration.</figcaption>
+</figure>
+
+<h3 id="a-sharp-volatility-transition">A sharp volatility transition</h3>
+
+<p>The momentum × maker plane splits into two regimes. While noise traders dominate, volatility is low and flat, about 0.95 to 1.2 price ticks regardless of the exact mix. Once the momentum fraction crosses a threshold between 0.20 and 0.30, volatility climbs by more than an order of magnitude, reaching 24.5 at a momentum fraction of 0.70 with 15% makers. Trend followers amplify each other&#x27;s price impact faster than everyone else can absorb it.</p>
+
+<h3 id="market-makers-move-the-threshold-and-damp-the-surge">Market makers move the threshold and damp the surge</h3>
+
+<p>Raising the maker fraction from 0.05 to 0.30 shifts the onset from a momentum fraction of 0.25 to 0.30, and cuts mid-transition volatility by more than half (from 14.6 to 6.6 at a momentum fraction of 0.45). Within a batch-auction market, this puts a number on a question a market designer actually faces: how much liquidity provision does it take to absorb a given amount of momentum flow?</p>
+
+<h3 id="tail-risk-concentrates-at-the-boundary">Tail risk concentrates at the boundary</h3>
+
+<p>Excess kurtosis is positive in 89 of 90 cells. It is moderate in the calm regime (2.2 to 3.5), <em>falls</em> inside the turbulent regime where returns are large but persistent, and spikes at the high-momentum edge (up to 21.7), where markets jump abruptly between quiet and trending states.</p>
+
+<h3 id="fundamentalists-do-not-simply-stabilize">Fundamentalists do not simply stabilize</h3>
+
+<p>Adding mean-reverting fundamentalists reshapes the diagram in three ways.</p>
+
+<ol>
+<li><strong>Pinning.</strong> With little momentum trading, fundamentalists hold the price in place. At a momentum fraction of 0.15, volatility falls from 0.97 to 0.08 as the fundamentalist fraction rises to 0.30. The pinned price is punctuated by rare breakouts that push excess kurtosis above 100.</li>
+<li><strong>Delayed onset.</strong> The transition moves from a momentum fraction of 0.25 with no fundamentalists to 0.40 with 30% fundamentalists.</li>
+<li><strong>A tug-of-war.</strong> At high momentum, a <em>moderate</em> fundamentalist presence makes things worse. At a momentum fraction of 0.50, volatility rises from 9.0 with no fundamentalists to a peak of 28.0 at 15%, then falls back to 12.7 at 30%. Trend followers push the price away from fundamental value, fundamentalists pull it back, and the result is large oscillations.</li>
+</ol>
+
+<p>We checked that the third effect is not sampling noise. Repeating the sweep at three momentum fractions under six random seeds reproduces the rise-then-fall shape in all 18 cases, with the peak at 15% fundamentalists in 17 of them and an amplification of 2.2× to 3.1× over the fundamentalist-free market.</p>
+
+<h3 id="it-behaves-like-a-market">It behaves like a market</h3>
+
+<p>At the standard configuration (15% momentum, 15% makers), the simulated returns show the familiar stylized facts of transaction-level data: a lag-1 return autocorrelation of −0.34 (the classic bid-ask bounce) and essentially zero beyond it, heavy tails with an excess kurtosis of 2.6, and volatility clustering, with the autocorrelation of absolute returns at +0.18 at lag 1.</p>
+
+<p>One caveat: the clustering lasts only a few clearing intervals, far shorter than the long memory seen in real assets. Reproducing that would need agents with longer memory than our four minimal strategy classes. These are findings about a deliberately simple model, and they should be read as such, not as forecasts about any real market.</p>
+
+<h2 id="what-kineticsim-does-not-do">What KineticSim does not do</h2>
+
+<ul>
+<li><strong>It is a call-auction engine, not a continuous double auction.</strong> The scan-and-reduce structure is specific to batch clearing. For the same reason we do not report head-to-head timings against simulators such as ABIDES or JAX-LOB. They simulate continuous price-time-priority matching, a different mechanism, so the numbers would not be like for like.</li>
+<li><strong>The price grid must be a power of two that fits in shared memory.</strong> Up to 1,024 ticks works today. Larger grids would need tiling.</li>
+<li><strong>The CPU baseline is single-core.</strong> Using all 32 threads would narrow that gap by at most that factor and would not close a three-orders-of-magnitude difference, but every CPU speedup above should be read with that in mind.</li>
+<li><strong>One GPU, one model of GPU.</strong> We expect the design to carry over to datacenter parts, since the kernel runs at full occupancy with a 4 KB shared-memory footprint per block, but we have not measured it.</li>
+<li><strong>Validation against NumPy is statistical, not bitwise</strong>, because the random number generators differ.</li>
+</ul>
+
+<h2 id="beyond-markets">Beyond markets</h2>
+
+<p>Nothing about the pattern is specific to finance. It applies when a simulation has (1) many independent instances, (2) per-instance state small enough for shared memory, and (3) a step that is a reduction over many agents followed by an aggregate update. Candidates include continuous double auctions built on shared-memory heaps, multi-agent reinforcement-learning environments, and traffic or grid routing models. We have only evaluated the call-auction case, so treat those as directions, not results.</p>
+
+<h2 id="run-it-yourself">Run it yourself</h2>
+
+<p>The repository contains the optimized engine, every baseline, the benchmark suite, and the validation tests. You need CUDA Toolkit 12.8 or newer, CMake 3.24 or newer, a C++17 compiler, and Python 3.9 or newer.</p>
+
+<div class="ks-code" data-lang="Shell"><pre tabindex="0"><code>pip install -r requirements.txt
+./build.sh                    <span class="t-com"># builds for RTX 50-series (sm_120) by default</span>
+KS_ARCH=89 ./build.sh         <span class="t-com"># for example, RTX 40-series</span>
+
+<span class="t-com"># correctness first</span>
+python3 benchmarks/validate_correctness.py
+
+<span class="t-com"># full benchmark sweep, then figures</span>
+python3 benchmarks/run_benchmarks.py --all --trials 7
+python3 benchmarks/plot_results.py</code></pre></div>
+
+<p>From Python (with the repository&#x27;s <code>python/</code> directory on your path), a run looks like this:</p>
+
+<div class="ks-code" data-lang="Python"><pre tabindex="0"><code><span class="t-kw">from</span> kineticsim <span class="t-kw">import</span> SimConfig, get_backend
+
+cfg = SimConfig(n_markets=<span class="t-num">8192</span>, n_agents=<span class="t-num">256</span>, n_levels=<span class="t-num">128</span>, n_steps=<span class="t-num">500</span>)
+engine = get_backend(<span class="t-str">"cuda"</span>)(cfg)
+result = engine.run()
+
+print(<span class="t-str">f"{result['events_per_s']:.3g} agent-events per second"</span>)</code></pre></div>
+
+<p>Swap <code>&quot;cuda&quot;</code> for <code>&quot;naive&quot;</code>, <code>&quot;torch&quot;</code>, <code>&quot;jax&quot;</code>, or <code>&quot;cpu&quot;</code> to run the same model on any other backend.</p>
+
+<h2 id="citation">Citation</h2>
+
+<div class="ks-code ks-code-wrap" data-lang="BibTeX"><pre tabindex="0"><code>@article{jayakody2026kineticsim,
+  title={KineticSim: A Lightweight, High-Performance Execution Engine for Real-Time Market Simulators},
+  author={Jayakody, Shakya and Jayakody, Prarthinie},
+  journal={arXiv preprint arXiv:2606.21784},
+  year={2026}
+}</code></pre></div>
+
+</article>
+
+<footer class="blog-footer">
+<a href="../">All posts</a>
+<a href="../../">Home</a>
+</footer>
+
+<script src="../blog.js?v=1.0"></script>
+</body>
+</html>
